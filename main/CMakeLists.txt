@@ -29,6 +29,7 @@ idf_component_register(
 		"ui/stats.cpp"
 		"ui/stats_view.cpp"
 		"ui/status_bar.cpp"
+		"ui/static_map.cpp"
 		"ui/views.cpp"
 	PRIV_REQUIRES
 		esp_lcd

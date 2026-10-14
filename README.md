@@ -10,7 +10,7 @@ There is no SDR in this app - it is a network client, not a receiver.
 ## Views
 
 - **Map** - top-down map with aircraft icons, altitude-coloured trails and pre-rendered map
-  backgrounds at several zoom levels
+  backgrounds at several zoom levels (loaded from the SD card, see "Map backgrounds")
 - **Radar** - rotating sweep with phosphor-style blips that paint callsign, route, altitude and
   speed as the sweep passes each aircraft
 - **Arrivals** - split-flap style board with animated character flips
@@ -47,6 +47,57 @@ bitmap fonts. Each glyph is rasterized once into an A8 mask and cached per font 
 letters stay sharp at any size and repeated draws cost about the same as a bitmap font. The
 implementation lives in `main/hershey/`.
 
+## Map backgrounds
+
+The map view draws a dark basemap underneath the aircraft. Those images are **not** part of the
+app binary - they are a file on the SD card, so changing the map is a file copy instead of a
+rebuild. The app reads `/sd/adsb/map.bin` (falling back to `/int/adsb/map.bin`) into PSRAM in the
+background at startup, so the map view works straight away and picks up each zoom level as it
+arrives. Without a map file the map view keeps its plain grid background.
+
+### Generate the map
+
+```sh
+pip3 install Pillow requests
+
+python3 tools/generate_static_map.py                                  # centres on HOME_LAT/HOME_LON
+python3 tools/generate_static_map.py --lat 47.048333 --lon 16.122222  # explicit location
+python3 tools/generate_static_map.py --output /tmp/vienna.bin         # different output path
+```
+
+The script downloads CartoDB dark tiles for every range level (150 / 100 / 50 / 20 / 5 / 1 nm),
+stitches them, crops them to the 800x450 map viewport and writes them as RGB565 into a single
+~1 MB file - `adsb_map.bin` in the repo root unless `--output` says otherwise. `--width` and
+`--height` set the stored resolution; the default 400x225 is scaled 2x by the app and keeps the
+file small.
+
+### Put it on the SD card as `adsb/map.bin`
+
+With the card in the computer:
+
+```sh
+mkdir -p /media/SD/adsb && cp adsb_map.bin /media/SD/adsb/map.bin
+```
+
+Or over USB with BadgeLink, the same channel `make install` uses:
+
+```sh
+cd badgelink/tools
+./badgelink.sh fs mkdir /sd/adsb
+./badgelink.sh fs upload /sd/adsb/map.bin ../../../adsb_map.bin
+./badgelink.sh fs list /sd/adsb          # check it landed
+```
+
+`/sd` is the SD card as the device sees it, `/int` is the FAT partition on the flash chip. Restart
+the app to pick up a new map.
+
+### Which location a map is valid for
+
+The file is a fixed viewport around one location, and the app compares the centre stored in it
+against `HOME_LAT`/`HOME_LON` in `main/config.h`. A map generated for a place more than about half
+a degree away is ignored rather than drawn wrongly. When you travel: update `HOME_LAT`/`HOME_LON`,
+run the generator, copy the new file, rebuild.
+
 ## Building
 
 ```sh
@@ -69,6 +120,8 @@ Differences from the original `adsb` project:
 - Wi-Fi comes from the Tanmatsu coprocessor through `wifi-manager` / `esp-wifi-remote` instead of
   SDIO esp-hosted and Ethernet
 - Hershey vector font instead of LVGL's Montserrat bitmap fonts
+- Map backgrounds are a binary on the SD card (`/sd/adsb/map.bin`) instead of a generated C header
+  compiled into the app, which frees about 1 MB of the app partition
 - No Ethernet, no touchscreen, no audio
 
 ## License

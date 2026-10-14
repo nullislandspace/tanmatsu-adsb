@@ -34,6 +34,7 @@ extern "C" {
 #include "ui/range.h"
 #include "ui/settings.h"
 #include "ui/status_bar.h"
+#include "ui/static_map.h"
 #include "ui/views.h"
 
 static char const TAG[] = "adsb";
@@ -301,6 +302,11 @@ extern "C" void app_main(void) {
     error_log_init();
     enrichment_init();
     fetcher_init(&aircraft_list);
+
+    // Map backgrounds are a file on the SD card, not part of the app binary.
+    // Loading ~1 MB of pixels takes a second or two, so it happens in the
+    // background and the map view picks it up as each zoom level arrives.
+    static_map_start();
 
     if (xTaskCreate(lvgl_task, "adsb_lvgl", 12288, nullptr, 3, nullptr) != pdPASS) {
         ESP_LOGE(TAG, "Failed to create the LVGL task");
