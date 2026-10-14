@@ -26,6 +26,7 @@ extern "C" {
 #include "data/storage.h"
 #include "display_config.h"
 #include "hal/keyboard_input.h"
+#include "hal/sdcard.h"
 #include "psram_alloc.h"
 #include "ui/alerts.h"
 #include "ui/detail_card.h"
@@ -253,6 +254,16 @@ extern "C" void app_main(void) {
     keyboard_input_set_indev(indev);
 
     splash_show();
+
+    // --- SD card ---
+    // Mounted before the radio comes up: ESP-Hosted claims the shared SDMMC host
+    // controller, and the card needs a clean power cycle of its own first.
+    // The map background is read from /sd, so this has to happen before the map
+    // loader starts.
+    res = sdcard_mount();
+    if (res != ESP_OK) {
+        ESP_LOGW(TAG, "SD card not available: %s", esp_err_to_name(res));
+    }
 
     // --- WiFi (the fetch task does the actual associating/retrying) ---
     // Power-cycle the radio coprocessor before bringing up esp-hosted: the

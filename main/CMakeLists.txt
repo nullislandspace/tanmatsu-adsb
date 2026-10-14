@@ -16,6 +16,7 @@ idf_component_register(
 		"data/http_mutex.cpp"
 		"data/storage.cpp"
 		"hal/keyboard_input.cpp"
+		"hal/sdcard.cpp"
 		"hershey/lv_font_hershey.c"
 		"ui/alerts.cpp"
 		"ui/arrivals_view.cpp"
@@ -42,6 +43,9 @@ idf_component_register(
 		nvs_flash
 		bt
 		esp_driver_tsens
+		esp_driver_sdmmc
+		sdmmc
+		vfs
 		lvgl
 		cjson
 		wifi-manager

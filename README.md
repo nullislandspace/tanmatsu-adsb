@@ -84,12 +84,12 @@ Or over USB with BadgeLink, the same channel `make install` uses:
 ```sh
 cd badgelink/tools
 ./badgelink.sh fs mkdir /sd/adsb
-./badgelink.sh fs upload /sd/adsb/map.bin ../../../adsb_map.bin
+./badgelink.sh fs upload /sd/adsb/map.bin ../../adsb_map.bin
 ./badgelink.sh fs list /sd/adsb          # check it landed
 ```
 
-`/sd` is the SD card as the device sees it, `/int` is the FAT partition on the flash chip. Restart
-the app to pick up a new map.
+`/sd` is the SD card as the device sees it - the app mounts it itself at startup (`main/hal/sdcard.cpp`),
+so this works whether or not the launcher is running. Restart the app to pick up a new map.
 
 ### Which location a map is valid for
 
