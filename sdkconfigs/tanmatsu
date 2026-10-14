@@ -41,3 +41,26 @@ CONFIG_ESP32P4_SELECTS_REV_LESS_V3=y
 CONFIG_ESP32P4_REV_MIN_1=y
 CONFIG_ESP32P4_REV_MIN_FULL=1
 CONFIG_ESP_REV_MIN_FULL=1
+
+# LVGL's own allocator is a fixed static pool (64 kB, and it lives in internal
+# RAM), which this UI outgrows: lv_malloc() returns NULL and LVGL dereferences
+# it in lv_draw_add_task. Let LVGL allocate from the system heap instead, so it
+# gets all of internal RAM and spills into PSRAM for the larger buffers.
+CONFIG_LV_USE_CLIB_MALLOC=y
+
+# Text is drawn with the Hershey vector font (main/hershey) instead of one of
+# LVGL's built-in bitmaps. The header named here only defines macros; it also
+# redefines LV_FONT_DEFAULT.
+CONFIG_LV_FONT_USE_CUSTOM_INCLUDE=y
+CONFIG_LV_FONT_CUSTOM_INCLUDE="lv_font_hershey.h"
+CONFIG_LV_USE_CUSTOM_FONT_DEFAULT=y
+# RGB565 implies Montserrat 14; drop it, nothing uses it any more.
+CONFIG_LV_FONT_MONTSERRAT_14=n
+
+# Every HTTPS request allocates the TLS record buffers (16 kB in + 4 kB out)
+# and the handshake state. In the default "internal memory" mode all of that
+# has to come out of internal DIRAM, which is already carrying the task stacks,
+# lwIP, esp-hosted and LVGL -- mbedtls_ssl_setup() then fails with
+# MBEDTLS_ERR_SSL_ALLOC_FAILED (-0x008D) and every download dies. The board has
+# 32 MB of PSRAM, so let mbed TLS allocate from there.
+CONFIG_MBEDTLS_EXTERNAL_MEM_ALLOC=y

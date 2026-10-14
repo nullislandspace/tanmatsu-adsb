@@ -1,0 +1,27 @@
+#pragma once
+#include "lvgl.h"
+#include "../data/aircraft.h"
+
+// View indices
+#define VIEW_MAP 0
+#define VIEW_RADAR 1
+#define VIEW_ARRIVALS 2
+#define VIEW_STATS 3
+
+// Initialize the tileview with all view containers
+void views_init(lv_obj_t *parent, AircraftList *list);
+
+// Get the container object for a specific view (for adding child widgets)
+lv_obj_t *views_get_tile(int view_index);
+
+// Get the currently active tile index
+int views_get_active_index();
+
+// Get the tileview object (for view cycling)
+lv_obj_t *views_get_tileview();
+
+// Pause auto-cycle (call when user manually selects a view)
+void views_pause_cycle();
+
+// Global touch state — set by touch_read_cb, used by view timers to defer rendering
+extern volatile bool input_active;
