@@ -8,6 +8,7 @@ idf_component_register(
 	SRCS
 		"main.cpp"
 		"arduino_compat.cpp"
+		"psram_alloc.cpp"
 		"data/enrichment.cpp"
 		"data/error_log.cpp"
 		"data/fetcher.cpp"

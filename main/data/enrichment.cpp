@@ -7,6 +7,7 @@
 #include <cstring>
 
 #include "cJSON.h"
+#include "esp_attr.h"
 #include "esp_heap_caps.h"
 #include "esp_log.h"
 #include "freertos/FreeRTOS.h"
@@ -17,8 +18,9 @@ static char const TAG[] = "adsb enrich";
 
 #define MAX_CACHE 20
 
-static AircraftEnrichment _cache[MAX_CACHE];
-static char               _cache_keys[MAX_CACHE][7];
+// 12 kB of lookup table — PSRAM, internal RAM is needed by the SDIO link.
+static EXT_RAM_BSS_ATTR AircraftEnrichment _cache[MAX_CACHE];
+static EXT_RAM_BSS_ATTR char               _cache_keys[MAX_CACHE][7];
 static int                _cache_count = 0;
 
 static void (*_pending_callback)(AircraftEnrichment*) = nullptr;

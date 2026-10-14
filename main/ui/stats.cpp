@@ -5,11 +5,14 @@
 #include <cstring>
 #include <cstdlib>
 
+#include "esp_attr.h"
+
 static SessionStats _stats;
 
 // Simple hash set for unique ICAO tracking
 #define MAX_UNIQUE 2000
-static char _seen_icaos[MAX_UNIQUE][7];
+// 14 kB of session history — PSRAM, internal RAM is needed by the SDIO link.
+static EXT_RAM_BSS_ATTR char _seen_icaos[MAX_UNIQUE][7];
 static int _seen_count = 0;
 
 static bool already_seen(const char *icao) {

@@ -5,6 +5,9 @@
 #include "../data/enrichment.h"
 #include "display_config.h"
 
+#include <cstdarg>
+#include <cstdio>
+
 static lv_obj_t *_card = nullptr;
 
 // Header
@@ -114,6 +117,26 @@ static const char *decode_squawk(uint16_t sq) {
     }
 }
 
+// snprintf() reports the length it *would* have written, so the running offset
+// has to be clamped: an unclamped pos can pass a negative size that wraps to a
+// huge size_t and lets the next append run off the end of the buffer.
+static int append_text(char *buf, size_t size, int pos, const char *fmt, ...)
+    __attribute__((format(printf, 4, 5)));
+
+static int append_text(char *buf, size_t size, int pos, const char *fmt, ...) {
+    if (pos < 0) pos = 0;
+    if ((size_t)pos >= size) return (int)size - 1;
+
+    va_list args;
+    va_start(args, fmt);
+    int written = vsnprintf(buf + pos, size - (size_t)pos, fmt, args);
+    va_end(args);
+
+    if (written < 0) return pos;
+    pos += written;
+    return pos > (int)size - 1 ? (int)size - 1 : pos;
+}
+
 static void on_enrichment_ready(AircraftEnrichment *data) {
     if (!_visible) return;
 
@@ -139,25 +162,25 @@ static void on_enrichment_ready(AircraftEnrichment *data) {
     char detail[160] = {};
     int pos = 0;
     if (data->manufacturer[0]) {
-        pos += snprintf(detail + pos, sizeof(detail) - pos, "%s", data->manufacturer);
+        pos = append_text(detail, sizeof(detail), pos, "%s", data->manufacturer);
     }
     if (data->owner[0]) {
-        if (pos > 0) pos += snprintf(detail + pos, sizeof(detail) - pos, "  |  ");
-        pos += snprintf(detail + pos, sizeof(detail) - pos, "%s", data->owner);
+        if (pos > 0) pos = append_text(detail, sizeof(detail), pos, "  |  ");
+        pos = append_text(detail, sizeof(detail), pos, "%s", data->owner);
     }
     if (data->registered_country[0]) {
-        if (pos > 0) pos += snprintf(detail + pos, sizeof(detail) - pos, "  |  ");
-        pos += snprintf(detail + pos, sizeof(detail) - pos, "%s", data->registered_country);
+        if (pos > 0) pos = append_text(detail, sizeof(detail), pos, "  |  ");
+        pos = append_text(detail, sizeof(detail), pos, "%s", data->registered_country);
         if (data->year_built > 0) {
-            pos += snprintf(detail + pos, sizeof(detail) - pos, " %d", data->year_built);
+            pos = append_text(detail, sizeof(detail), pos, " %d", data->year_built);
         }
     } else if (data->year_built > 0) {
-        if (pos > 0) pos += snprintf(detail + pos, sizeof(detail) - pos, "  |  ");
-        pos += snprintf(detail + pos, sizeof(detail) - pos, "Built %d", data->year_built);
+        if (pos > 0) pos = append_text(detail, sizeof(detail), pos, "  |  ");
+        pos = append_text(detail, sizeof(detail), pos, "Built %d", data->year_built);
     }
     if (data->engine_count > 0 && data->engine_type[0]) {
-        if (pos > 0) pos += snprintf(detail + pos, sizeof(detail) - pos, "  |  ");
-        snprintf(detail + pos, sizeof(detail) - pos, "%dx %s", data->engine_count, data->engine_type);
+        if (pos > 0) pos = append_text(detail, sizeof(detail), pos, "  |  ");
+        append_text(detail, sizeof(detail), pos, "%dx %s", data->engine_count, data->engine_type);
     }
     if (detail[0]) lv_label_set_text(_aircraft_detail_label, detail);
 

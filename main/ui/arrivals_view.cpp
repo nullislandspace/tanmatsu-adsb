@@ -10,6 +10,8 @@
 #include <cstdlib>
 #include "range.h"
 
+#include "esp_attr.h"
+
 static AircraftList *_list = nullptr;
 static lv_obj_t *_board_container = nullptr;
 static lv_obj_t *_range_label = nullptr;
@@ -93,7 +95,8 @@ struct BoardRow {
     bool active;
 };
 
-static BoardRow _rows[MAX_ROWS];
+// 12 kB of flip-board state — PSRAM, internal RAM is needed by the SDIO link.
+static EXT_RAM_BSS_ATTR BoardRow _rows[MAX_ROWS];
 static lv_obj_t *_header_labels[8];
 static lv_obj_t *_title_label = nullptr;
 

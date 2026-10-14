@@ -26,6 +26,7 @@ extern "C" {
 #include "data/storage.h"
 #include "display_config.h"
 #include "hal/keyboard_input.h"
+#include "psram_alloc.h"
 #include "ui/alerts.h"
 #include "ui/detail_card.h"
 #include "ui/filters.h"
@@ -187,6 +188,9 @@ static esp_err_t init_nvs(void) {
 }
 
 extern "C" void app_main(void) {
+    // Before anything allocates: LVGL and cJSON go to PSRAM, not internal RAM.
+    psram_alloc_init();
+
     ESP_ERROR_CHECK(gpio_install_isr_service(0));
 
     esp_err_t res = init_nvs();
@@ -303,7 +307,11 @@ extern "C" void app_main(void) {
         return;
     }
 
-    ESP_LOGI(TAG, "ADS-B ready: internal heap %lu bytes free, PSRAM %lu bytes free",
+    // The largest free internal block is the number that matters: the SDIO link
+    // to the WiFi coprocessor needs contiguous internal/DMA memory.
+    ESP_LOGI(TAG,
+             "ADS-B ready: internal heap %lu bytes free (largest block %lu), PSRAM %lu bytes free",
              (unsigned long)heap_caps_get_free_size(MALLOC_CAP_INTERNAL),
+             (unsigned long)heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL | MALLOC_CAP_DMA),
              (unsigned long)heap_caps_get_free_size(MALLOC_CAP_SPIRAM));
 }

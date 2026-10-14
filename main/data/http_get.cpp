@@ -27,8 +27,10 @@ int http_get_body(const char* url, char** out_buf, size_t* out_len, size_t max_l
     int status = -1;
 
     if (esp_http_client_open(client, 0) != ESP_OK) {
-        ESP_LOGE(TAG, "Open failed: internal heap %lu bytes free, PSRAM %lu bytes free",
+        ESP_LOGE(TAG,
+                 "Open failed: internal heap %lu bytes free (largest block %lu), PSRAM %lu bytes free",
                  (unsigned long)heap_caps_get_free_size(MALLOC_CAP_INTERNAL),
+                 (unsigned long)heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL | MALLOC_CAP_DMA),
                  (unsigned long)heap_caps_get_free_size(MALLOC_CAP_SPIRAM));
         esp_http_client_cleanup(client);
         return -1;

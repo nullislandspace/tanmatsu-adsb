@@ -11,6 +11,7 @@
 #include <cstring>
 
 #include "cJSON.h"
+#include "esp_attr.h"
 #include "esp_heap_caps.h"
 #include "esp_log.h"
 #include "esp_netif.h"
@@ -27,6 +28,10 @@ static char const TAG[] = "adsb fetcher";
 #define WIFI_CONNECT_TIMEOUT_MS 30000
 #define FETCH_FAIL_RESET_THRESHOLD 10  // consecutive fails before reconnecting
 #define MAX_RESPONSE_BYTES (512 * 1024)
+// esp-hosted, lwIP and the task stacks all need contiguous internal RAM; warn
+// before running out of it rather than after.
+#define INTERNAL_HEAP_WARN_BYTES 81920
+#define DMA_BLOCK_WARN_BYTES 24576
 
 static NetType _active_net = NET_NONE;
 
@@ -181,8 +186,10 @@ static void json_string(const cJSON* obj, const char* key, char* out, size_t out
 static void parse_aircraft_json(cJSON* doc) {
     cJSON* ac = cJSON_GetObjectItemCaseSensitive(doc, "ac");
 
-    // Phase 1: Parse JSON into flat array — no lock needed
-    static ParsedEntry parsed[MAX_AIRCRAFT];
+    // Phase 1: Parse JSON into flat array — no lock needed.
+    // 30 kB of scratch, so it lives in PSRAM: internal RAM is needed by the
+    // SDIO link to the WiFi coprocessor.
+    static EXT_RAM_BSS_ATTR ParsedEntry parsed[MAX_AIRCRAFT];
     int parsed_count = 0;
 
     cJSON* obj = nullptr;
@@ -369,6 +376,17 @@ static void fetch_task(void* param) {
             consecutive_fails = 0;
         }
 
+        {
+            size_t const internal_free = heap_caps_get_free_size(MALLOC_CAP_INTERNAL);
+            size_t const dma_largest   = heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL | MALLOC_CAP_DMA);
+            if (internal_free < INTERNAL_HEAP_WARN_BYTES || dma_largest < DMA_BLOCK_WARN_BYTES) {
+                ESP_LOGW(TAG,
+                         "Low internal RAM: %lu bytes free, largest DMA block %lu (PSRAM %lu free)",
+                         (unsigned long)internal_free, (unsigned long)dma_largest,
+                         (unsigned long)heap_caps_get_free_size(MALLOC_CAP_SPIRAM));
+            }
+        }
+
         vTaskDelay(pdMS_TO_TICKS(ADSB_POLL_INTERVAL_MS));
     }
 }
@@ -466,7 +484,9 @@ void fetcher_init(AircraftList* list) {
     _aircraft_list = list;
     http_mutex_init();
 
-    xTaskCreatePinnedToCore(fetch_task, "adsb_fetch", 32768, nullptr, 1, &_fetch_task_handle, 1);
+    // Task stacks come out of internal RAM, so keep them as small as the
+    // TLS handshake comfortably fits into.
+    xTaskCreatePinnedToCore(fetch_task, "adsb_fetch", 16384, nullptr, 1, &_fetch_task_handle, 1);
     xTaskCreatePinnedToCore(route_enrich_task, "route_enrich", 16384, nullptr, 0, &_route_task_handle, 1);
 }
 

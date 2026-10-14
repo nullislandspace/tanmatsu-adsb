@@ -44,9 +44,11 @@ CONFIG_ESP_REV_MIN_FULL=1
 
 # LVGL's own allocator is a fixed static pool (64 kB, and it lives in internal
 # RAM), which this UI outgrows: lv_malloc() returns NULL and LVGL dereferences
-# it in lv_draw_add_task. Let LVGL allocate from the system heap instead, so it
-# gets all of internal RAM and spills into PSRAM for the larger buffers.
-CONFIG_LV_USE_CLIB_MALLOC=y
+# it in lv_draw_add_task. main/psram_alloc.cpp replaces it with an allocator
+# that prefers PSRAM, so UI objects, styles and draw tasks stop eating the
+# internal RAM the SDIO link to the WiFi coprocessor needs. cJSON's parse tree
+# is redirected the same way through cJSON_InitHooks().
+CONFIG_LV_USE_CUSTOM_MALLOC=y
 
 # Text is drawn with the Hershey vector font (main/hershey) instead of one of
 # LVGL's built-in bitmaps. The header named here only defines macros; it also
@@ -57,6 +59,26 @@ CONFIG_LV_USE_CUSTOM_FONT_DEFAULT=y
 # RGB565 implies Montserrat 14; drop it, nothing uses it any more.
 CONFIG_LV_FONT_MONTSERRAT_14=n
 
+# LVGL's builtin printf (CONFIG_LV_USE_STDLIB_SPRINTF=0) compiles out every
+# %f conversion when LV_USE_FLOAT is off -- and, worse, an unhandled conversion
+# does not consume its argument, so the following %s reads the wrong vararg
+# slot. main/ passes floats in soft-float register pairs, so
+# lv_label_set_text_fmt(lbl, "%.1f%s", 2.3f, " R") handed the low word of the
+# double (0x60000000) to lv_strnlen() as a char*: Load access fault.
+# Turning this on makes %f work everywhere it is used (distance, lat/lon, roll,
+# QNH, PSRAM/bytes) and keeps the argument stream aligned.
+#
+# Note: sdkconfig_* is generated and gitignored, and kconfig keeps values that
+# are already in it. If your sdkconfig_tanmatsu predates this line, delete that
+# generated file so the setting below is picked up on the next build.
+CONFIG_LV_USE_FLOAT=y
+
+# The big static tables in main/ (parsed JSON scratch, the enrichment cache,
+# the arrivals board, the session ICAO history) are tagged EXT_RAM_BSS_ATTR,
+# which only does anything with this enabled. It also moves the lwIP and BT BSS
+# sections out of internal RAM.
+CONFIG_SPIRAM_ALLOW_BSS_SEG_EXTERNAL_MEMORY=y
+
 # Every HTTPS request allocates the TLS record buffers (16 kB in + 4 kB out)
 # and the handshake state. In the default "internal memory" mode all of that
 # has to come out of internal DIRAM, which is already carrying the task stacks,
@@ -64,3 +86,18 @@ CONFIG_LV_FONT_MONTSERRAT_14=n
 # MBEDTLS_ERR_SSL_ALLOC_FAILED (-0x008D) and every download dies. The board has
 # 32 MB of PSRAM, so let mbed TLS allocate from there.
 CONFIG_MBEDTLS_EXTERNAL_MEM_ALLOC=y
+
+# esp-hosted's SDIO "Streaming Mode" (its default, and what the launcher uses)
+# reads the transfer length out of a slave register and then mallocs an internal
+# DMA buffer that big -- twice, for its rx double buffer -- and keeps both at
+# their high-water mark for the rest of the session. The length is not sanity
+# checked in that mode, so if internal RAM has run out the driver dies on
+# assert(*buf) in sdio_rx_get_buffer(). That is a symptom, not the cause: the
+# app has to leave enough contiguous internal RAM behind, which is what the
+# CONFIG_LV_USE_CUSTOM_MALLOC / EXT_RAM_BSS_ATTR settings above are for.
+#
+# If that assert ever comes back anyway, this is the one-line fallback: it makes
+# the driver read a fixed 1536 bytes per transaction out of its own mempool
+# instead, which bounds its internal RAM footprint at the cost of more, smaller
+# SDIO transactions.
+#CONFIG_ESP_HOSTED_SDIO_OPTIMIZATION_RX_MAX_SIZE=y
