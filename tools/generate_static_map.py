@@ -9,7 +9,8 @@ Usage:
     python3 tools/generate_static_map.py [--lat LAT] [--lon LON] [--output PATH]
 
 Defaults to HOME_LAT/HOME_LON from main/config.h if not specified.
-Tile source: CartoDB dark_all (dark basemap matching the UI theme).
+Tile source: standard OpenStreetMap tiles - the map data is (c) OpenStreetMap
+contributors, odbl.org.
 
 Copy the result to the SD card as adsb/map.bin (which is /sd/adsb/map.bin on
 the device) and restart the app. See main/ui/static_map.cpp for the format.
@@ -46,8 +47,14 @@ RANGE_LEVELS = [150, 100, 50, 20, 5, 1]
 MAGIC = b"ADSBMAP1"
 VERSION = 1
 
-TILE_URL = "https://basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png"
-USER_AGENT = "ADS-B-Display-Static-Map/1.0"
+# CartoDB's dark basemaps started requiring an API key and now answer every
+# request with the same "API key required" placeholder tile, so this uses the
+# standard (light) OpenStreetMap tiles instead.
+TILE_URL = "https://tile.openstreetmap.org/{z}/{x}/{y}.png"
+# The OSM tile usage policy wants a User-Agent that says who is asking.
+USER_AGENT = "tanmatsu-adsb-map-generator/1.0 (https://github.com/nullislandspace/tanmatsu-adsb)"
+# OSM sea colour, used where a tile could not be fetched.
+BLANK_TILE_RGB = (170, 211, 223)
 
 
 def pixel_of_coord(lat: float, lon: float, z: int) -> tuple[float, float]:
@@ -83,14 +90,14 @@ def download_tile(z: int, x: int, y: int, max_retries: int = 3) -> Image.Image:
             if resp.status_code == 200:
                 return Image.open(io.BytesIO(resp.content)).convert("RGB")
             elif resp.status_code == 404:
-                return Image.new("RGB", (TILE_PX, TILE_PX), (10, 10, 26))
+                return Image.new("RGB", (TILE_PX, TILE_PX), BLANK_TILE_RGB)
             else:
                 print(f"  HTTP {resp.status_code} for tile {z}/{x}/{y}, retry {attempt+1}")
         except Exception as e:
             print(f"  Error fetching tile {z}/{x}/{y}: {e}, retry {attempt+1}")
         time.sleep(0.5 * (attempt + 1))
     print(f"  WARNING: Failed to fetch tile {z}/{x}/{y}, using blank")
-    return Image.new("RGB", (TILE_PX, TILE_PX), (10, 10, 26))
+    return Image.new("RGB", (TILE_PX, TILE_PX), BLANK_TILE_RGB)
 
 
 def rgb888_to_rgb565(r: int, g: int, b: int) -> int:

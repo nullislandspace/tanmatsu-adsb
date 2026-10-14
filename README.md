@@ -65,11 +65,13 @@ python3 tools/generate_static_map.py --lat 47.048333 --lon 16.122222  # explicit
 python3 tools/generate_static_map.py --output /tmp/vienna.bin         # different output path
 ```
 
-The script downloads CartoDB dark tiles for every range level (150 / 100 / 50 / 20 / 5 / 1 nm),
-stitches them, crops them to the 800x450 map viewport and writes them as RGB565 into a single
+The script downloads standard OpenStreetMap tiles for every range level (150 / 100 / 50 / 20 / 5 / 1
+nm), stitches them, crops them to the 800x450 map viewport and writes them as RGB565 into a single
 ~1 MB file - `adsb_map.bin` in the repo root unless `--output` says otherwise. `--width` and
 `--height` set the stored resolution; the default 400x225 is scaled 2x by the app and keeps the
-file small.
+file small. Map data is (c) OpenStreetMap contributors (opendatacommons.org/licenses/odbl); the
+generator sends a descriptive User-Agent as the OSM tile usage policy asks. CartoDB's dark basemaps
+are no longer usable without an API key - they answer every request with the same placeholder tile.
 
 ### Put it on the SD card as `adsb/map.bin`
 
